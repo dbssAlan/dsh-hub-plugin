@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.4.0
+
+- PWA：`/manifest.webmanifest`、`/sw.js`、`/icon.svg`
+- 首页自动注入 manifest / theme-color / iOS 全屏 meta 与安全区样式
+- 手机可「添加到主屏幕」，以独立窗口打开
+- 设备导航页增加「添加到主屏幕」提示
+
 ## 0.3.0
 
 - 设置页改走宿主同源路由 `/dsh-hub/status`、`/dsh-hub/config`，不再跨端口请求

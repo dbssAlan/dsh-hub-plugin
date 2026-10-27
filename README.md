@@ -237,8 +237,15 @@ node lib/hub-cli.mjs --port 19388 --no-tunnel
 - [x] v0.1 插件骨架 + 设置页入口
 - [x] v0.2 设置页开关/密码/隧道，保存即生效
 - [x] v0.3 同源路由 `/dsh-hub/*`，不再跨端口
-- [ ] v0.4 PWA 与移动端样式注入
+- [x] v0.4 PWA（添加到主屏幕）+ 移动端安全区样式
 - [ ] v0.5 设备级令牌与撤销、登录审计
+
+### 手机「添加到主屏幕」
+
+打开远程地址并登录后，在浏览器菜单里选「添加到主屏幕」：
+iOS Safari 是「分享 → 添加到主屏幕」，Android/华为浏览器是「菜单 → 添加到桌面」。
+添加后会以独立窗口打开（无地址栏），体验接近 App。
+
 
 ---
 
@@ -255,7 +262,7 @@ DSH Hub is a DeepSeek Harness plugin that exposes your local DSH instance to LAN
 Install:
 
 ```
-https://github.com/dbssAlan/dsh-hub-plugin
+dsh-hub-plugin
 ```
 
-Use DSH's plugin page (desktop) or `dsh plugin --profile web add -w <url>`. MIT licensed.
+Use DSH's plugin page (desktop) or `dsh plugin --profile web add -w dsh-hub-plugin`. MIT licensed.
