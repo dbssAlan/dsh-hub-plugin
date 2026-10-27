@@ -143,6 +143,8 @@ DSH_HOME=/path/to/home dsh plugin --profile web add -w /path/to/dsh-hub-plugin
 - 登录 Cookie：30 天、`HttpOnly`、`SameSite=Lax`
 - 登录失败限速：5 次 / 60 秒
 - 设置页写接口走宿主同源路由 `/dsh-hub/*`，校验 `x-dsh-hub` 请求头（防 CSRF）
+- 访问密码字段可「显示 / 隐藏」；「查看」按钮（点击或长按）会读取已保存密码，仅对已登录的设置页生效
+- 普通配置接口不回显密码，仅 `_config?reveal=1` 返回
 - 公网入口由 cloudflared 提供 TLS，本机端口不直接暴露
 
 **注意**：DSH 可以执行本机命令，密码泄露等于电脑控制权。密码明文保存在 `config.json`（权限 0600），建议用 16 位以上随机串；公网长期使用建议叠加 Cloudflare Access。

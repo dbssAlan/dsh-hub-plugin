@@ -9,7 +9,7 @@ window.__ModuleLoader__.load({
   factory(require) {
     const React = require('react');
     const h = React.createElement;
-    const { useState, useEffect, useCallback } = React;
+    const { useState, useEffect, useCallback, useRef } = React;
 
     const muted = { color: 'var(--dsw-alias-label-tertiary,#8b93a1)', fontSize: 12, lineHeight: 1.7 };
     const label = { fontSize: 12, color: 'var(--dsw-alias-label-secondary,#5b6472)', marginBottom: 4, display: 'block' };
@@ -62,9 +62,11 @@ window.__ModuleLoader__.load({
       const [sessions, setSessions] = useState([]);
       const [audit, setAudit] = useState([]);
       const [password, setPassword] = useState('');
+      const [showPwd, setShowPwd] = useState(false);
       const [error, setError] = useState('');
       const [notice, setNotice] = useState('');
       const [busy, setBusy] = useState(false);
+      const revealTimer = useRef(null);
 
       const load = useCallback(async () => {
         setError('');
@@ -166,6 +168,23 @@ window.__ModuleLoader__.load({
         try { await navigator.clipboard.writeText(text); setNotice('已复制'); } catch { setNotice('复制失败，请手动选择'); }
       };
 
+      const revealSaved = async () => {
+        try {
+          const r = await fetch('/dsh-hub/config?reveal=1', { cache: 'no-store' });
+          const j = await r.json();
+          if (j.password) {
+            setPassword(j.password);
+            setShowPwd(true);
+            setNotice('已显示当前密码');
+          }
+        } catch {}
+      };
+      const startReveal = () => {
+        clearTimeout(revealTimer.current);
+        revealTimer.current = setTimeout(revealSaved, 500);
+      };
+      const stopReveal = () => clearTimeout(revealTimer.current);
+
       if (!cfg) {
         return h('div', { style: { maxWidth: 560 } },
           h('h3', { style: { margin: '0 0 8px', fontSize: 15 } }, 'DSH Hub 远程访问'),
@@ -256,8 +275,31 @@ window.__ModuleLoader__.load({
                 h('option', { value: 'named' }, 'named（固定域名）')))),
 
           h(Row, null,
-            h(Field, { title: '访问密码', hint: cfg.passwordSet ? '已设置；留空表示不修改' : '至少 8 位' },
-              h('input', { style: input, type: 'password', value: password, onChange: (e) => setPassword(e.target.value), placeholder: cfg.passwordSet ? '••••••••' : '设置访问密码' })),
+            h(Field, { title: '访问密码', hint: cfg.passwordSet ? '留空表示不修改；点「查看」或长按可显示已保存密码' : '至少 8 位' },
+              h('div', { style: { display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'nowrap' } },
+                h('input', {
+                  style: { ...input, flex: 1, minWidth: 0 },
+                  type: showPwd ? 'text' : 'password',
+                  value: password,
+                  onChange: (e) => setPassword(e.target.value),
+                  placeholder: cfg.passwordSet ? '••••••••' : '设置访问密码',
+                }),
+                h('button', {
+                  type: 'button',
+                  style: { ...ghost, flexShrink: 0, padding: '0 10px' },
+                  onClick: () => setShowPwd((v) => !v),
+                }, showPwd ? '隐藏' : '显示'),
+                cfg.passwordSet
+                  ? h('button', {
+                      type: 'button',
+                      style: { ...ghost, flexShrink: 0, padding: '0 10px' },
+                      onPointerDown: startReveal,
+                      onPointerUp: stopReveal,
+                      onPointerLeave: stopReveal,
+                      onContextMenu: (e) => e.preventDefault(),
+                      onClick: revealSaved,
+                    }, '查看')
+                  : null)),
             h(Field, { title: '目标宿主端口', hint: '0 = 自动（当前 DSH 宿主）' },
               h('input', { style: input, type: 'number', value: cfg.targetPort ?? 0, onChange: (e) => patch('targetPort', e.target.value) }))),
 

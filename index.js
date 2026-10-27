@@ -150,7 +150,7 @@ export function apply(ctx, config) {
           const port = cfg.listenPort || 19388;
           let body;
           if (req.method === 'POST') body = await readBody(req);
-          const upstream = await fetch(`http://127.0.0.1:${port}${target}${sub === '/qr' ? u.search : ''}`, {
+          const upstream = await fetch(`http://127.0.0.1:${port}${target}${sub === '/qr' || sub === '/config' ? u.search : ''}`, {
             method: req.method,
             headers: {
               'x-dsh-hub': '1',
