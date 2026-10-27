@@ -138,9 +138,9 @@ export function apply(ctx, config) {
             return;
           }
           if (req.method === 'POST') {
-            const host = req.headers.host ?? '';
-            const origin = req.headers.origin ?? '';
-            if (!origin || origin !== `http://${host}`) {
+            // 防 CSRF：要求自定义头（跨站会触发预检，而本路由不返回 CORS 头）。
+            // 不校验 Origin，因为设置页也可能从隧道域名（远程）打开。
+            if (req.headers['x-dsh-hub'] !== '1') {
               res.writeHead(403, { 'content-type': 'text/plain; charset=utf-8' });
               res.end('forbidden\n');
               return;

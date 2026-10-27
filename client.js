@@ -98,7 +98,7 @@ window.__ModuleLoader__.load({
         try {
           await fetch('/dsh-hub/sessions/revoke', {
             method: 'POST',
-            headers: { 'content-type': 'application/json' },
+            headers: { 'content-type': 'application/json', 'x-dsh-hub': '1' },
             body: JSON.stringify({ id }),
           });
           await load();
@@ -108,7 +108,7 @@ window.__ModuleLoader__.load({
         try {
           await fetch('/dsh-hub/sessions/revoke-all', {
             method: 'POST',
-            headers: { 'content-type': 'application/json' },
+            headers: { 'content-type': 'application/json', 'x-dsh-hub': '1' },
             body: '{}',
           });
           await load();
@@ -138,8 +138,12 @@ window.__ModuleLoader__.load({
             headers: { 'content-type': 'application/json', 'x-dsh-hub': '1' },
             body: JSON.stringify(body),
           });
-          const j = await r.json();
-          if (!r.ok || !j.ok) throw new Error(j.error || `HTTP ${r.status}`);
+          const text = await r.text();
+          let j = null;
+          try { j = JSON.parse(text); } catch {}
+          if (!r.ok || !j || !j.ok) {
+            throw new Error(j?.error || text.slice(0, 120) || `HTTP ${r.status}`);
+          }
           setNotice('已保存，反代正在按新配置重启…');
           setPassword('');
           // 子进程重启需要 1-3 秒，轮询直到状态恢复

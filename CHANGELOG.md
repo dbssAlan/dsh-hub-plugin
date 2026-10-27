@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.2
+
+- 修复从隧道域名（远程页面）打开设置页时保存配置返回 `403 forbidden`
+- 防 CSRF 改为校验 `x-dsh-hub` 请求头，不再限制 Origin
+- 保存失败时显示服务端文本，而不是 `Unexpected token` 的 JSON 解析错误
+
 ## 0.5.1
 
 - 修复设置页二维码破图：`img` 地址改为宿主同源路由 `/dsh-hub/qr`

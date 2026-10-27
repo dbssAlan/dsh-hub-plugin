@@ -18,7 +18,7 @@
 - **桌面版直连**：直接发布 Electron 桌面版宿主，不额外起第二个宿主
 - **多宿主冲突提示**：检测到桌面版与 `dsh web` 同时运行会提醒（避免会话写租约互相锁）
 - **插件形态**：随 DSH 启停，设置页开关，无需单独开终端
-- **安全默认**：默认关闭；密码至少 8 位；管理接口仅宿主同源可写
+- **安全默认**：默认关闭；密码至少 8 位；写接口需 `x-dsh-hub` 头（防 CSRF）
 
 ---
 
@@ -142,7 +142,7 @@ DSH_HOME=/path/to/home dsh plugin --profile web add -w /path/to/dsh-hub-plugin
 - **访问密码是唯一门槛**，且不在 URL 里；链接被转发也无法直接进入
 - 登录 Cookie：30 天、`HttpOnly`、`SameSite=Lax`
 - 登录失败限速：5 次 / 60 秒
-- 设置页写接口走宿主同源路由 `/dsh-hub/*`，校验同源 `Origin`
+- 设置页写接口走宿主同源路由 `/dsh-hub/*`，校验 `x-dsh-hub` 请求头（防 CSRF）
 - 公网入口由 cloudflared 提供 TLS，本机端口不直接暴露
 
 **注意**：DSH 可以执行本机命令，密码泄露等于电脑控制权。密码明文保存在 `config.json`（权限 0600），建议用 16 位以上随机串；公网长期使用建议叠加 Cloudflare Access。
@@ -281,3 +281,4 @@ dsh-hub-plugin
 ```
 
 Use DSH's plugin page (desktop) or `dsh plugin --profile web add -w dsh-hub-plugin`. MIT licensed.
+
