@@ -247,6 +247,20 @@ locale/            # 插件市场显示用
 node lib/hub-cli.mjs --port 19388 --no-tunnel
 ```
 
+### 安全启动/清理测试宿主（重要）
+
+**不要按进程名杀进程**——测试宿主如果也用 `DeepSeek Harness.exe` 启动，`Get-Process -Name 'DeepSeek Harness' | Stop-Process` 会把用户正在用的桌面版一起杀掉。
+
+用仓库里的 `scripts/test-host.ps1`（普通 `node.exe` + PID 文件）：
+
+```powershell
+pwsh -File scripts/test-host.ps1 -Action start -Port 3099
+pwsh -File scripts/test-host.ps1 -Action status
+pwsh -File scripts/test-host.ps1 -Action stop
+```
+
+它只清理自己记录的 PID，并且拒绝杀掉非 `node.exe` 的进程。手工清理时也请用 PID 或端口反查，而不是进程名。
+
 ---
 
 ## 路线图

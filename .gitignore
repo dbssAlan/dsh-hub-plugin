@@ -8,3 +8,5 @@ hub.json
 Thumbs.db
 *.tmp
 .npm-cache/
+_test-host/
+_test-home/
