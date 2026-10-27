@@ -1,2 +1,0 @@
-
-5c61cddf252e3186306282294f701d9df31708df	{"key":"make-fetch-happen:request-cache:https://registry.npmjs.org/-/stage?page=0&perPage=100","integrity":"sha512-V8GvTxfN/0ydw7dYFaWgLhTasLmQI/QkPnKhXNll/dbIFqIWaYJw7O4jrv1iOzWZ4+4kg48CVVuN0p8UrWr+Gw==","time":1793123737195,"size":45,"metadata":{"time":1793123737174,"url":"https://registry.npmjs.org/-/stage?page=0&perPage=100","reqHeaders":{},"resHeaders":{"content-type":"application/json","date":"Tue, 27 Oct 2026 17:55:39 GMT"},"options":{"compress":true}}}
