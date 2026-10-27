@@ -202,7 +202,7 @@ window.__ModuleLoader__.load({
 
         h('div', { style: { display: 'flex', gap: 16, alignItems: 'center', marginBottom: 16, flexWrap: 'wrap' } },
           h('img', {
-            src: `/_qr?data=${encodeURIComponent(pub || origin)}`,
+            src: `/dsh-hub/qr?data=${encodeURIComponent(pub || origin)}`,
             width: 150, height: 150, alt: '扫码访问',
             style: { background: '#fff', padding: 6, borderRadius: 10 },
           }),

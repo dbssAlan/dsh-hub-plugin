@@ -1,6 +1,6 @@
 {
   "name": "dsh-hub-plugin",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "description": "把 DSH 安全地发布到局域网/公网：访问密码、二维码、设备导航、cloudflared 隧道，全部在设置页里管理。",
   "type": "module",
   "main": "index.js",
@@ -60,4 +60,5 @@
     "access": "public"
   }
 }
+
 
