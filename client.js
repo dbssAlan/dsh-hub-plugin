@@ -59,6 +59,8 @@ window.__ModuleLoader__.load({
     function HubSettings() {
       const [cfg, setCfg] = useState(null);
       const [status, setStatus] = useState(null);
+      const [sessions, setSessions] = useState([]);
+      const [audit, setAudit] = useState([]);
       const [password, setPassword] = useState('');
       const [error, setError] = useState('');
       const [notice, setNotice] = useState('');
@@ -79,10 +81,39 @@ window.__ModuleLoader__.load({
           ]);
           setCfg(c);
           setStatus(s);
+          fetch('/dsh-hub/sessions', { cache: 'no-store' })
+            .then((r) => (r.ok ? r.json() : { sessions: [] }))
+            .then((j) => setSessions(j.sessions ?? []))
+            .catch(() => {});
+          fetch('/dsh-hub/audit', { cache: 'no-store' })
+            .then((r) => (r.ok ? r.json() : { entries: [] }))
+            .then((j) => setAudit(j.entries ?? []))
+            .catch(() => {});
         } catch (e) {
           setError(`连不上宿主管理路由：${e.message}。请确认插件已启用，并重启过桌面版。`);
         }
       }, []);
+
+      const revokeSession = async (id) => {
+        try {
+          await fetch('/dsh-hub/sessions/revoke', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ id }),
+          });
+          await load();
+        } catch {}
+      };
+      const revokeAll = async () => {
+        try {
+          await fetch('/dsh-hub/sessions/revoke-all', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: '{}',
+          });
+          await load();
+        } catch {}
+      };
 
       useEffect(() => { load(); }, []);
 
@@ -168,6 +199,39 @@ window.__ModuleLoader__.load({
                 h('code', { style: { ...input, padding: '6px 8px', wordBreak: 'break-all' } }, pub),
                 h('button', { style: ghost, onClick: () => copy(pub) }, '复制')))
           : h('p', { style: { ...muted, marginBottom: 12 } }, '公网地址尚未就绪（快速隧道建立中，或模式为 off）。'),
+
+        h('div', { style: { display: 'flex', gap: 16, alignItems: 'center', marginBottom: 16, flexWrap: 'wrap' } },
+          h('img', {
+            src: `/_qr?data=${encodeURIComponent(pub || origin)}`,
+            width: 150, height: 150, alt: '扫码访问',
+            style: { background: '#fff', padding: 6, borderRadius: 10 },
+          }),
+          h('div', { style: { fontSize: 12, lineHeight: 1.8, color: 'var(--dsw-alias-label-tertiary,#8b93a1)' } },
+            h('div', null, '手机扫码直接打开当前地址'),
+            h('div', null, '登录后浏览器菜单里可「添加到主屏幕」'))),
+
+        h('div', { style: { borderTop: '1px solid var(--dsw-alias-border-l2,#e5e7eb)', paddingTop: 14, marginBottom: 14 } },
+          h('div', { style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 } },
+            h('div', { style: { ...label, marginBottom: 0 } }, '设备会话'),
+            h('button', { style: ghost, onClick: revokeAll }, '撤销全部')),
+          sessions.length
+            ? h('div', { style: { fontSize: 12 } },
+                sessions.map((s) => h('div', {
+                  key: s.fullId || s.id,
+                  style: { display: 'flex', alignItems: 'center', gap: 10, padding: '6px 0', borderBottom: '1px solid var(--dsw-alias-border-l3,#eee)' },
+                },
+                  h('span', { style: { minWidth: 110 } }, s.name),
+                  h('span', { style: { ...muted, flex: 1 } }, s.ip || '-'),
+                  h('span', { style: { ...muted, minWidth: 140 } }, s.revokedAt ? '已撤销' : new Date(s.lastSeenAt).toLocaleString()),
+                  h('button', { style: ghost, onClick: () => revokeSession(s.fullId || s.id) }, '撤销'))))
+            : h('p', { style: muted }, '暂无活跃会话'),
+
+          h('div', { style: { ...label, marginTop: 12 } }, '最近登录审计'),
+          audit.length
+            ? h('div', { style: { fontSize: 11, color: 'var(--dsw-alias-label-tertiary,#8b93a1)', maxHeight: 120, overflow: 'auto' } },
+                audit.slice(0, 10).map((e, i) => h('div', { key: i, style: { padding: '2px 0' } },
+                  `${new Date(e.at).toLocaleString()} · ${e.event}${e.name ? ` · ${e.name}` : ''}${e.ip ? ` · ${e.ip}` : ''}`)))
+            : null),
 
         h('div', { style: { marginBottom: 16, display: 'flex', gap: 10, flexWrap: 'wrap' } },
           h('a', { href: devices, target: '_blank', rel: 'noreferrer', style: { ...primary, textDecoration: 'none', display: 'inline-flex', alignItems: 'center' } }, '打开设备导航页'),

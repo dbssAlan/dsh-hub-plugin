@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.5.0
+
+- 设备会话：登录写入 `dsh-hub-sid` 会话 Cookie，按设备记录名称/IP/最近活跃
+- 设置页可查看会话、逐个撤销、撤销全部（撤销后该设备立即失效）
+- 登录审计：`dsh-hub-plugin/audit.jsonl`（登录成功/失败/撤销/配置变更）
+- 设置页新增二维码（`/dsh-hub/qr?data=...`），手机可直接扫码
+- **升级说明**：旧版本登录态没有会话 ID，升级后需要重新登录一次
+
 ## 0.4.0
 
 - PWA：`/manifest.webmanifest`、`/sw.js`、`/icon.svg`

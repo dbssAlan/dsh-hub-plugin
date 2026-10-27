@@ -122,7 +122,16 @@ export function apply(ctx, config) {
         try {
           const u = new URL(req.url ?? '/dsh-hub', 'http://hub.invalid');
           const sub = u.pathname.slice('/dsh-hub'.length) || '/';
-          const target = sub === '/status' ? '/_status' : sub === '/config' ? '/_config' : null;
+          const routes = {
+            '/status': '/_status',
+            '/config': '/_config',
+            '/sessions': '/_sessions',
+            '/sessions/revoke': '/_sessions/revoke',
+            '/sessions/revoke-all': '/_sessions/revoke-all',
+            '/audit': '/_audit',
+            '/qr': '/_qr',
+          };
+          const target = routes[sub] ?? null;
           if (target === null) {
             res.writeHead(404, { 'content-type': 'text/plain; charset=utf-8' });
             res.end('not found\n');
@@ -141,7 +150,7 @@ export function apply(ctx, config) {
           const port = cfg.listenPort || 19388;
           let body;
           if (req.method === 'POST') body = await readBody(req);
-          const upstream = await fetch(`http://127.0.0.1:${port}${target}`, {
+          const upstream = await fetch(`http://127.0.0.1:${port}${target}${sub === '/qr' ? u.search : ''}`, {
             method: req.method,
             headers: {
               'x-dsh-hub': '1',
