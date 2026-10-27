@@ -10,3 +10,5 @@ Thumbs.db
 .npm-cache/
 _test-host/
 _test-home/
+_v*/
+_test-*/

@@ -6,9 +6,10 @@
 #   pwsh -File scripts/test-host.ps1 -Action status
 #   pwsh -File scripts/test-host.ps1 -Action stop
 #
-# The test host runs on plain node.exe (bundled runtime) against the on-disk
-# global dsh CLI, so it never shares the "DeepSeek Harness" process name with
-# the user's desktop app. (Plain node cannot read inside app.asar.)
+# Why Electron.exe: the DSH CLI lives inside app.asar, which plain node.exe
+# cannot read. The test host therefore runs as "DeepSeek Harness.exe" too, but
+# this script ONLY ever stops the PID it recorded, and refuses to stop any
+# process whose path is not the expected executable. Never kill by name.
 
 param(
   [ValidateSet('start', 'stop', 'status')]
@@ -16,8 +17,9 @@ param(
   [string]$Workdir = (Join-Path $PSScriptRoot '..\_test-host'),
   [string]$DshHome = (Join-Path $PSScriptRoot '..\_test-home'),
   [int]$Port = 3099,
-  [string]$Node = 'D:\06_Tools\DeepSeek Harness\resources\runtime\primary-runtime\dependencies\node\bin\node.exe',
-  [string]$Bin = 'C:\dev_env\npm\npm_global\node_modules\@deepseek-ai\dsh\lib\bin.js'
+  [string]$Exe = 'D:\06_Tools\DeepSeek Harness\DeepSeek Harness.exe',
+  [string]$Bin = 'D:\06_Tools\DeepSeek Harness\resources\app.asar\dsh\node_modules\@deepseek-ai\dsh\lib\bin.js',
+  [string]$Asar = 'D:\06_Tools\DeepSeek Harness\resources\app.asar'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -48,8 +50,8 @@ function Test-PortInUse([int]$p) {
 
 switch ($Action) {
   'start' {
-    if (-not (Test-Path -LiteralPath $Node)) { throw "node.exe not found: $Node" }
-    if (-not (Test-Path -LiteralPath $Bin)) { throw "dsh bin.js not found: $Bin" }
+    if (-not (Test-Path -LiteralPath $Exe)) { throw "DeepSeek Harness.exe not found: $Exe" }
+    if (-not (Test-Path -LiteralPath $Asar)) { throw "app.asar not found: $Asar" }
 
     $existing = Get-TestPid
     if ($existing -and (Get-Process -Id $existing -ErrorAction SilentlyContinue)) {
@@ -60,10 +62,11 @@ switch ($Action) {
     }
 
     $env:DSH_HOME = $DshHome
-    Remove-Item Env:\ELECTRON_RUN_AS_NODE -ErrorAction SilentlyContinue
+    $env:ELECTRON_RUN_AS_NODE = '1'
 
-    $p = Start-Process -FilePath $Node `
-      -ArgumentList @($Bin, 'web', '--no-open', '--port', "$Port") `
+    $arguments = @('--expose-internals', ('"' + $Bin + '"'), '--profile', 'web', 'web', '--no-open', '--port', "$Port")
+    $p = Start-Process -FilePath $Exe `
+      -ArgumentList $arguments `
       -WorkingDirectory $Workdir `
       -RedirectStandardOutput $outLog `
       -RedirectStandardError $errLog `
@@ -104,9 +107,9 @@ switch ($Action) {
       break
     }
 
-    # Guard: only stop a node.exe process, never a desktop app process.
-    if ($proc.Path -and $proc.Path -ne $Node) {
-      throw "refusing to kill PID ${id}: path is $($proc.Path), expected $Node"
+    # Guard: only stop the expected executable, never another app instance.
+    if ($proc.Path -and $proc.Path -ne $Exe) {
+      throw "refusing to kill PID ${id}: path is $($proc.Path), expected $Exe"
     }
 
     Stop-Process -Id $id -Force
@@ -114,3 +117,4 @@ switch ($Action) {
     Write-Output "stopped PID $id"
   }
 }
+

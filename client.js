@@ -56,6 +56,79 @@ window.__ModuleLoader__.load({
         hint ? h('div', { style: { ...muted, marginTop: 4 } }, hint) : null);
     }
 
+    // ── 远程设备：侧边栏按钮 + 全屏浮层（iframe 嵌入对端 DSH）──────────────
+    const remoteState = { open: false, listeners: new Set() };
+    const setRemoteOpen = (v) => {
+      remoteState.open = v;
+      for (const l of remoteState.listeners) l();
+    };
+
+    function useRemoteOpen() {
+      const [, force] = useState(0);
+      useEffect(() => {
+        const l = () => force((x) => x + 1);
+        remoteState.listeners.add(l);
+        return () => remoteState.listeners.delete(l);
+      }, []);
+      return remoteState.open;
+    }
+
+    function RemoteButton() {
+      const open = useRemoteOpen();
+      return h('button', {
+        type: 'button',
+        style: { ...ghost, width: '100%', marginTop: 6 },
+        onClick: () => setRemoteOpen(!open),
+      }, open ? '关闭远程' : '远程设备');
+    }
+
+    function RemotePanel() {
+      const open = useRemoteOpen();
+      const [peers, setPeers] = useState([]);
+      const [tab, setTab] = useState('');
+      const [error, setError] = useState('');
+
+      useEffect(() => {
+        if (!open) return;
+        fetch('/dsh-hub/peers', { cache: 'no-store' })
+          .then((r) => (r.ok ? r.json() : { peers: [] }))
+          .then((j) => {
+            const list = j.peers ?? [];
+            setPeers(list);
+            setTab((t) => t || list[0]?.id || '');
+          })
+          .catch((e) => setError(e.message));
+      }, [open]);
+
+      if (!open) return null;
+      const peer = peers.find((p) => p.id === tab);
+
+      return h('div', {
+        style: { position: 'fixed', inset: 0, zIndex: 9999, background: '#0f1115', color: '#e6e6e6', display: 'flex', flexDirection: 'column' },
+      },
+        h('div', { style: { display: 'flex', gap: 8, alignItems: 'center', padding: '8px 12px', borderBottom: '1px solid #262b36', flexWrap: 'wrap' } },
+          h('span', { style: { fontSize: 13, fontWeight: 600 } }, '远程设备'),
+          peers.map((p) => h('button', {
+            key: p.id,
+            type: 'button',
+            style: { ...ghost, height: 30, padding: '0 10px', background: p.id === tab ? '#2b3446' : 'transparent' },
+            onClick: () => setTab(p.id),
+          }, p.name)),
+          h('span', { style: { flex: 1 } }),
+          peer ? h('a', {
+            href: peer.url,
+            target: '_blank',
+            rel: 'noreferrer',
+            style: { ...ghost, height: 30, textDecoration: 'none', display: 'inline-flex', alignItems: 'center' },
+          }, '新窗口打开') : null,
+          h('button', { type: 'button', style: { ...ghost, height: 30 }, onClick: () => setRemoteOpen(false) }, '关闭')),
+        error ? h('div', { style: { padding: 12, color: '#f87171', fontSize: 12 } }, error) : null,
+        peer
+          ? h('iframe', { src: peer.url, title: peer.name, style: { flex: 1, border: 0, width: '100%', background: '#fff' } })
+          : h('div', { style: { padding: 24, fontSize: 13, color: '#8b93a1' } },
+              peers.length ? '选择一台设备' : '还没有远程设备：到 设置 → 远程访问 → 远程设备 添加另一台装了本插件的电脑。'));
+    }
+
     function HubSettings() {
       const [cfg, setCfg] = useState(null);
       const [status, setStatus] = useState(null);
@@ -66,6 +139,10 @@ window.__ModuleLoader__.load({
       const [error, setError] = useState('');
       const [notice, setNotice] = useState('');
       const [busy, setBusy] = useState(false);
+      const [peers, setPeers] = useState([]);
+      const [peerName, setPeerName] = useState('');
+      const [peerUrl, setPeerUrl] = useState('');
+      const [peerMsg, setPeerMsg] = useState('');
 
       const load = useCallback(async () => {
         setError('');
@@ -90,6 +167,10 @@ window.__ModuleLoader__.load({
             .then((r) => (r.ok ? r.json() : { entries: [] }))
             .then((j) => setAudit(j.entries ?? []))
             .catch(() => {});
+          fetch('/dsh-hub/peers', { cache: 'no-store' })
+            .then((r) => (r.ok ? r.json() : { peers: [] }))
+            .then((j) => setPeers(j.peers ?? []))
+            .catch(() => {});
         } catch (e) {
           setError(`连不上宿主管理路由：${e.message}。请确认插件已启用，并重启过桌面版。`);
         }
@@ -111,6 +192,38 @@ window.__ModuleLoader__.load({
             method: 'POST',
             headers: { 'content-type': 'application/json', 'x-dsh-hub': '1' },
             body: '{}',
+          });
+          await load();
+        } catch {}
+      };
+
+      const addPeer = async () => {
+        setPeerMsg('');
+        try {
+          const r = await fetch('/dsh-hub/peers', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json', 'x-dsh-hub': '1' },
+            body: JSON.stringify({ name: peerName, url: peerUrl }),
+          });
+          const text = await r.text();
+          let j = null;
+          try { j = JSON.parse(text); } catch {}
+          if (!r.ok || !j?.ok) throw new Error(j?.error || text.slice(0, 100) || `HTTP ${r.status}`);
+          setPeerName('');
+          setPeerUrl('');
+          setPeerMsg('已添加');
+          await load();
+        } catch (e) {
+          setPeerMsg(`添加失败：${e.message}`);
+        }
+      };
+
+      const removePeer = async (id) => {
+        try {
+          await fetch('/dsh-hub/peers/remove', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json', 'x-dsh-hub': '1' },
+            body: JSON.stringify({ id }),
           });
           await load();
         } catch {}
@@ -263,6 +376,22 @@ window.__ModuleLoader__.load({
                   `${new Date(e.at).toLocaleString()} · ${e.event}${e.name ? ` · ${e.name}` : ''}${e.ip ? ` · ${e.ip}` : ''}`)))
             : null),
 
+        h('div', { style: { borderTop: '1px solid var(--dsw-alias-border-l2,#e5e7eb)', paddingTop: 14, marginBottom: 14 } },
+          h('div', { style: { ...label, marginBottom: 0 } }, '远程设备（多机互控）'),
+          h('p', { style: { ...muted, margin: '6px 0 8px' } },
+            '添加另一台装了本插件的电脑；侧边栏「远程设备」会在浮层里嵌入它的 DSH（需在浮层里登录一次对方密码）。'),
+          peers.map((p) => h('div', { key: p.id, style: { display: 'flex', alignItems: 'center', gap: 8, padding: '4px 0' } },
+            h('span', { style: { minWidth: 90 } }, p.name),
+            h('span', { style: { ...muted, flex: 1, wordBreak: 'break-all' } }, p.url),
+            h('button', { type: 'button', style: ghost, onClick: () => removePeer(p.id) }, '移除'))),
+          h('div', { style: { display: 'flex', alignItems: 'center', gap: 8, marginTop: 8 } },
+            h('input', { style: { ...input, width: 110, flexShrink: 0 }, placeholder: '名称', value: peerName, onChange: (e) => setPeerName(e.target.value) }),
+            h('input', { style: { ...input, flex: 1, minWidth: 0 }, placeholder: 'https://另一台设备地址', value: peerUrl, onChange: (e) => setPeerUrl(e.target.value) }),
+            h('button', { type: 'button', style: { ...ghost, flexShrink: 0 }, onClick: addPeer }, '添加')),
+          peerMsg ? h('div', { style: { ...muted, marginTop: 6 } }, peerMsg) : null,
+          h('div', { style: { ...muted, marginTop: 8 } },
+            '想共享同一批会话：让两台都打开同一台 DSH 的地址（单中心），而不是各自跑本地 DSH。')),
+
         h('div', { style: { marginBottom: 16, display: 'flex', gap: 10, flexWrap: 'wrap' } },
           h('a', { href: devices, target: '_blank', rel: 'noreferrer', style: { ...primary, textDecoration: 'none', display: 'inline-flex', alignItems: 'center' } }, '打开设备导航页'),
           h('a', { href: pub || origin, target: '_blank', rel: 'noreferrer', style: { ...ghost, textDecoration: 'none', display: 'inline-flex', alignItems: 'center' } }, '打开登录页')),
@@ -326,6 +455,18 @@ window.__ModuleLoader__.load({
           ctx.slots.register(
             { name: 'settings.section', id: 'dsh-hub', order: 3, label: () => '远程访问', inject: () => ({}) },
             HubSettings,
+          ),
+        );
+        ctx.slots.inject('sidebar.footer.action', () =>
+          ctx.slots.register(
+            { name: 'sidebar.footer.action', id: 'dsh-hub-remote', order: 20 },
+            RemoteButton,
+          ),
+        );
+        ctx.slots.inject('shell.overlay', () =>
+          ctx.slots.register(
+            { name: 'shell.overlay', id: 'dsh-hub-remote-panel', order: 100 },
+            RemotePanel,
           ),
         );
       },
