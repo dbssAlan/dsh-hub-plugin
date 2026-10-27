@@ -199,9 +199,9 @@ window.__ModuleLoader__.load({
         pub
           ? h('div', { style: { marginBottom: 12 } },
               h('div', { style: label }, '公网地址'),
-              h('div', { style: { display: 'flex', gap: 8, alignItems: 'center' } },
-                h('code', { style: { ...input, padding: '6px 8px', wordBreak: 'break-all' } }, pub),
-                h('button', { style: ghost, onClick: () => copy(pub) }, '复制')))
+              h('div', { style: { display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'nowrap' } },
+                h('code', { style: { ...input, width: 'auto', flex: 1, minWidth: 0, padding: '6px 8px', wordBreak: 'break-all' } }, pub),
+                h('button', { style: { ...ghost, flexShrink: 0, whiteSpace: 'nowrap' }, onClick: () => copy(pub) }, '复制')))
           : h('p', { style: { ...muted, marginBottom: 12 } }, '公网地址尚未就绪（快速隧道建立中，或模式为 off）。'),
 
         h('div', { style: { display: 'flex', gap: 16, alignItems: 'center', marginBottom: 16, flexWrap: 'wrap' } },
