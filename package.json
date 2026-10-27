@@ -1,0 +1,58 @@
+{
+  "name": "dsh-hub-plugin",
+  "version": "0.3.0",
+  "description": "把 DSH 安全地发布到局域网/公网：访问密码、二维码、设备导航、cloudflared 隧道，全部在设置页里管理。",
+  "type": "module",
+  "main": "index.js",
+  "exports": {
+    ".": "./index.js",
+    "./client": "./client.js",
+    "./locale/*.json": "./locale/*.json",
+    "./icon": "./icon.svg"
+  },
+  "files": [
+    "index.js",
+    "client.js",
+    "cordis.patch.yml",
+    "lib",
+    "locale/*.json",
+    "icon.svg",
+    "README.md",
+    "LICENSE",
+    "SECURITY.md",
+    "CHANGELOG.md"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "immediately": true,
+      "inject": [
+        "@deepseek-ai/dsh-client-ui-slots"
+      ]
+    }
+  },
+  "keywords": [
+    "deepseek-harness",
+    "dsh",
+    "dsh-plugin",
+    "remote",
+    "tunnel",
+    "mobile"
+  ],
+  "author": "dbssAlan",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dbssAlan/dsh-hub-plugin.git"
+  },
+  "homepage": "https://github.com/dbssAlan/dsh-hub-plugin#readme",
+  "bugs": {
+    "url": "https://github.com/dbssAlan/dsh-hub-plugin/issues"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

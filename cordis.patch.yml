@@ -1,0 +1,12 @@
+# DSH Hub 插件入口：插入宿主行。客户端由 package.json 的 dsh.client 装载。
+- insert:
+    - id: dsh-hub-plugin
+      name: dsh-hub-plugin
+      config:
+        enabled: false
+        password: ""
+        listenPort: 19388
+        tunnel: quick
+        tunnelToken: ""
+        publicUrl: ""
+        targetPort: 0

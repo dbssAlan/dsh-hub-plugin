@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "DSH Hub 远程访问",
+    "description": "用访问密码把 DSH 发布到局域网/公网，手机扫码即用；支持 cloudflared 快速/命名隧道与设备导航页。"
+  }
+}

@@ -1,0 +1,9 @@
+node_modules/
+*.log
+*.log.*
+config.json
+status.json
+hub.json
+.DS_Store
+Thumbs.db
+*.tmp

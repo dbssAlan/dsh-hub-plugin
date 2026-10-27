@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "DSH Hub Remote Access",
+    "description": "Publish DSH to LAN or the internet behind an access password, with QR devices page and cloudflared quick/named tunnels."
+  }
+}
