@@ -9,7 +9,7 @@ window.__ModuleLoader__.load({
   factory(require) {
     const React = require('react');
     const h = React.createElement;
-    const { useState, useEffect, useCallback, useRef } = React;
+    const { useState, useEffect, useCallback } = React;
 
     const muted = { color: 'var(--dsw-alias-label-tertiary,#8b93a1)', fontSize: 12, lineHeight: 1.7 };
     const label = { fontSize: 12, color: 'var(--dsw-alias-label-secondary,#5b6472)', marginBottom: 4, display: 'block' };
@@ -66,7 +66,6 @@ window.__ModuleLoader__.load({
       const [error, setError] = useState('');
       const [notice, setNotice] = useState('');
       const [busy, setBusy] = useState(false);
-      const revealTimer = useRef(null);
 
       const load = useCallback(async () => {
         setError('');
@@ -176,14 +175,22 @@ window.__ModuleLoader__.load({
             setPassword(j.password);
             setShowPwd(true);
             setNotice('已显示当前密码');
+          } else {
+            setNotice('还没有保存密码');
           }
-        } catch {}
+        } catch {
+          setNotice('读取密码失败');
+        }
       };
-      const startReveal = () => {
-        clearTimeout(revealTimer.current);
-        revealTimer.current = setTimeout(revealSaved, 500);
+
+      // 一个按钮：空且已保存 → 取回并显示；否则切换明文/密文
+      const togglePwd = async () => {
+        if (!password && cfg?.passwordSet) {
+          await revealSaved();
+          return;
+        }
+        setShowPwd((v) => !v);
       };
-      const stopReveal = () => clearTimeout(revealTimer.current);
 
       if (!cfg) {
         return h('div', { style: { maxWidth: 560 } },
@@ -275,7 +282,7 @@ window.__ModuleLoader__.load({
                 h('option', { value: 'named' }, 'named（固定域名）')))),
 
           h(Row, null,
-            h(Field, { title: '访问密码', hint: cfg.passwordSet ? '留空表示不修改；点「查看」或长按可显示已保存密码' : '至少 8 位' },
+            h(Field, { title: '访问密码', hint: cfg.passwordSet ? '留空表示不修改；点「显示」可查看已保存密码' : '至少 8 位' },
               h('div', { style: { display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'nowrap' } },
                 h('input', {
                   style: { ...input, flex: 1, minWidth: 0 },
@@ -287,19 +294,8 @@ window.__ModuleLoader__.load({
                 h('button', {
                   type: 'button',
                   style: { ...ghost, flexShrink: 0, padding: '0 10px' },
-                  onClick: () => setShowPwd((v) => !v),
-                }, showPwd ? '隐藏' : '显示'),
-                cfg.passwordSet
-                  ? h('button', {
-                      type: 'button',
-                      style: { ...ghost, flexShrink: 0, padding: '0 10px' },
-                      onPointerDown: startReveal,
-                      onPointerUp: stopReveal,
-                      onPointerLeave: stopReveal,
-                      onContextMenu: (e) => e.preventDefault(),
-                      onClick: revealSaved,
-                    }, '查看')
-                  : null)),
+                  onClick: togglePwd,
+                }, showPwd ? '隐藏' : '显示'))),
             h(Field, { title: '目标宿主端口', hint: '0 = 自动（当前 DSH 宿主）' },
               h('input', { style: input, type: 'number', value: cfg.targetPort ?? 0, onChange: (e) => patch('targetPort', e.target.value) }))),
 
@@ -336,3 +332,4 @@ window.__ModuleLoader__.load({
     };
   },
 });
+
