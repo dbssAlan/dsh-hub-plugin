@@ -1,6 +1,6 @@
 # DSH Hub 远程访问（dsh-hub-plugin）
 
-![version](https://img.shields.io/badge/version-0.3.0-blue)
+[![npm](https://img.shields.io/npm/v/dsh-hub-plugin)](https://www.npmjs.com/package/dsh-hub-plugin)
 ![license](https://img.shields.io/badge/license-MIT-green)
 ![platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey)
 
@@ -52,7 +52,20 @@ DSH 默认只监听 `127.0.0.1`，并对 Host 有校验。Hub 在本机做反向
 
 ## 安装
 
-### 从 GitHub 安装（推荐）
+### 从 npm 安装（推荐）
+
+```
+dsh-hub-plugin
+```
+
+- **桌面版**：设置 → 插件 → 添加插件，填 `dsh-hub-plugin`
+- **命令行（web profile）**：
+
+```bash
+dsh plugin --profile web add -w dsh-hub-plugin
+```
+
+### 从 GitHub 安装
 
 ```
 https://github.com/dbssAlan/dsh-hub-plugin
