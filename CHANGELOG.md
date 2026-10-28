@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.1
+
+- 修复快速隧道公网地址误取 cloudflared 日志里的 API 端点 `https://api.trycloudflare.com`；现在只取真实隧道域名
+
 ## 0.6.0
 
 - 新增「远程设备」：设置里添加对方地址（探测 /_health），侧边栏按钮 + 全屏浮层 iframe 嵌入对端 DSH
@@ -68,6 +72,7 @@
 - 插件骨架：host 半 + 设置页入口
 - 复用已验证的反代、密码页、设备导航页、cloudflared 隧道逻辑
 - 支持快速隧道与命名隧道
+
 
 
 
