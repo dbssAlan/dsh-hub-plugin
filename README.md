@@ -285,6 +285,30 @@ pwsh -File scripts/test-host.ps1 -Action stop
 
 ---
 
+## 热更新（不重启桌面端）
+
+插件运行时逻辑全在 `lib/hub-cli.mjs`（子进程），宿主插件只在子进程退出后重建它。因此：
+
+| 改动文件 | 生效方式 |
+|---|---|
+| `lib/hub-cli.mjs`（反代/密码/隧道/设备/会话） | 设置页点 **「重载插件」**，或 `POST /dsh-hub/reload`，或按 PID 结束 19388 监听进程 → 宿主自动重建，**无需重启 DSH** |
+| `index.js`（宿主路由/生命周期） | 需要重启桌面端一次（宿主模块代际） |
+| `client.js`（设置页 UI） | 需要重启桌面端一次（客户端模块代际） |
+
+重载只需几秒，期间隧道会短暂断开；快速隧道会换一个新地址，命名隧道地址不变。
+
+手动重载（按 PID，不要按进程名）：
+
+```powershell
+$line = netstat -ano | Select-String ':19388\s+.*LISTENING'
+if ($line) {
+  $id = ([string]$line).Trim() -split '\s+' | Select-Object -Last 1
+  Stop-Process -Id $id -Force
+}
+```
+
+---
+
 ## 路线图
 
 - [x] v0.1 插件骨架 + 设置页入口

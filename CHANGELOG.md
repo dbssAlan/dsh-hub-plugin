@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.6.2
+
+- 新增「重载插件」按钮与 `/dsh-hub/reload`：更新 hub-cli 运行时无需重启 DSH 桌面端
+- README 增加热更新边界说明（index.js / client.js 仍需各重启一次）
+
 ## 0.6.1
 
 - 修复快速隧道公网地址误取 cloudflared 日志里的 API 端点 `https://api.trycloudflare.com`；现在只取真实隧道域名
@@ -72,6 +77,7 @@
 - 插件骨架：host 半 + 设置页入口
 - 复用已验证的反代、密码页、设备导航页、cloudflared 隧道逻辑
 - 支持快速隧道与命名隧道
+
 
 
 

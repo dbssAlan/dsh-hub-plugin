@@ -296,6 +296,27 @@ window.__ModuleLoader__.load({
         }
       };
 
+      // 只重启插件运行时子进程，不重启桌面端（宿主会自动重建）
+      const reloadPlugin = async () => {
+        setNotice('正在重载插件…');
+        setError('');
+        try {
+          await fetch('/dsh-hub/reload', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json', 'x-dsh-hub': '1' },
+            body: '{}',
+          });
+        } catch {}
+        for (let i = 0; i < 20; i += 1) {
+          await new Promise((r) => setTimeout(r, 500));
+          try {
+            const st = await fetch('/dsh-hub/status', { cache: 'no-store' });
+            if (st.ok) { await load(); setNotice('插件已重载'); return; }
+          } catch {}
+        }
+        setNotice('重载超时，请点「重新读取」');
+      };
+
       // 一个按钮：空且已保存 → 取回并显示；否则切换明文/密文
       const togglePwd = async () => {
         if (!password && cfg?.passwordSet) {
@@ -438,6 +459,7 @@ window.__ModuleLoader__.load({
 
           h('div', { style: { display: 'flex', gap: 10, marginTop: 8 } },
             h('button', { style: primary, disabled: busy, onClick: save }, busy ? '保存中…' : '保存并重启'),
+            h('button', { style: { ...ghost, disabled: busy }, onClick: reloadPlugin }, '重载插件'),
             h('button', { style: ghost, disabled: busy, onClick: load }, '重新读取')),
 
           error ? h('p', { style: { color: '#f87171', fontSize: 12, marginTop: 10 } }, error) : null,

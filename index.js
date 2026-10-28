@@ -130,6 +130,7 @@ export function apply(ctx, config) {
             '/sessions/revoke-all': '/_sessions/revoke-all',
             '/audit': '/_audit',
             '/qr': '/_qr',
+            '/reload': '/_reload',
             '/peer': '/_peer',
             '/peers': '/_peers',
             '/peers/remove': '/_peers/remove',
