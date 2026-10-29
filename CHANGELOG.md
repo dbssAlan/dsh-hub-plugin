@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.7.0-beta.1
+
+- 跨平台：cloudflared 按平台/架构下载（win/darwin/linux × amd64/arm64），macOS 解压 tgz 并 chmod
+- 端口扫描：macOS/Linux 使用 lsof/ss；进程检测使用 ps；桌面缓存路径按平台
+- 凭据读取失败时给出明确提示（macOS 系统钥匙串暂不支持）
+- 新增 dsh-hub.sh、scripts/smoke.mjs、GitHub Actions 三平台 CI
+- 待真机验证：macOS 桌面版 / dsh web、Linux
+
 ## 0.6.2
 
 - 新增「重载插件」按钮与 `/dsh-hub/reload`：更新 hub-cli 运行时无需重启 DSH 桌面端
@@ -77,6 +85,7 @@
 - 插件骨架：host 半 + 设置页入口
 - 复用已验证的反代、密码页、设备导航页、cloudflared 隧道逻辑
 - 支持快速隧道与命名隧道
+
 
 
 

@@ -169,6 +169,27 @@ DSH_HOME=/path/to/home dsh plugin --profile web add -w /path/to/dsh-hub-plugin
 
 ---
 
+## 跨平台支持
+
+| 平台 | 宿主形态 | 状态 |
+|---|---|---|
+| Windows | 桌面版 / `dsh web` | ✅ 已验证 |
+| macOS | 桌面版 / `dsh web` | ⚠️ 代码已适配，待真机验证 |
+| Linux | `dsh web` | ⚠️ 代码已适配，待真机验证 |
+| 手机 / 平板 / 任意浏览器 | 客户端 | ✅ 与系统无关 |
+
+跨平台适配点：
+
+- **cloudflared** 按平台/架构下载：`windows-amd64.exe`、`darwin-amd64/arm64.tgz`、`linux-amd64/arm64`；macOS 自动解压并 `chmod 755`
+- **端口/进程扫描**：Windows 用 `netstat/tasklist`；macOS/Linux 用 `lsof`/`ss`/`ps`
+- **凭据**：要求 `~/.dsh/.credentials.yaml`；macOS 若改用系统钥匙串，当前版本会给出明确错误
+- **独立运行**：mac/Linux 用 `./dsh-hub.sh` 或 `node dsh-hub.mjs`；Windows 用 `dsh-hub.cmd`
+- **CI**：GitHub Actions 在 ubuntu / macos / windows 三平台跑语法检查 + 启动冒烟
+
+> macOS 桌面版：DSH 桌面端支持插件页安装时，本插件与 Windows 行为一致（宿主会直接传入端口，无需扫描）。
+
+---
+
 ## 多机互控与单中心
 
 ### 多机互控（v0.6）
