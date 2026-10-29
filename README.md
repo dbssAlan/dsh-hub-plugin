@@ -187,6 +187,8 @@ DSH_HOME=/path/to/home dsh plugin --profile web add -w /path/to/dsh-hub-plugin
 - **CI**：GitHub Actions 在 ubuntu / macos / windows 三平台跑语法检查 + 启动冒烟
 
 > macOS 桌面版：DSH 桌面端支持插件页安装时，本插件与 Windows 行为一致（宿主会直接传入端口，无需扫描）。
+>
+> macOS 真机测试清单：[docs/macos-testing.md](docs/macos-testing.md)
 
 ---
 
