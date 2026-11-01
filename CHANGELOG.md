@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.7.0-beta.2
+
+- 修复「远程设备」浮层空白且无法退出：改用 portal 挂到 body（避免被侧边栏裁剪）、增加 Esc 关闭、错误边界与关闭兜底
+
 ## 0.7.0-beta.1
 
 - 跨平台：cloudflared 按平台/架构下载（win/darwin/linux × amd64/arm64），macOS 解压 tgz 并 chmod
@@ -85,6 +89,7 @@
 - 插件骨架：host 半 + 设置页入口
 - 复用已验证的反代、密码页、设备导航页、cloudflared 隧道逻辑
 - 支持快速隧道与命名隧道
+
 
 
 

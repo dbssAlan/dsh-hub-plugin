@@ -82,6 +82,36 @@ window.__ModuleLoader__.load({
       }, open ? '关闭远程' : '远程设备');
     }
 
+    let createPortal = null;
+    try { createPortal = require('react-dom').createPortal; } catch {}
+
+    class RemoteBoundary extends React.Component {
+      constructor(props) {
+        super(props);
+        this.state = { error: null };
+      }
+      static getDerivedStateFromError(error) {
+        return { error };
+      }
+      componentDidCatch(error) {
+        try { console.error('[dsh-hub] remote panel error', error); } catch {}
+      }
+      render() {
+        if (this.state.error) {
+          return h('div', {
+            style: { position: 'fixed', inset: 0, zIndex: 9999, background: '#0f1115', color: '#e6e6e6', padding: 24, fontSize: 13 },
+          },
+            h('div', null, `远程设备面板出错：${this.state.error?.message ?? this.state.error}`),
+            h('button', {
+              type: 'button',
+              style: { ...ghost, marginTop: 12 },
+              onClick: () => { setRemoteOpen(false); this.setState({ error: null }); },
+            }, '关闭'));
+        }
+        return this.props.children;
+      }
+    }
+
     function RemotePanel() {
       const open = useRemoteOpen();
       const [peers, setPeers] = useState([]);
@@ -100,11 +130,24 @@ window.__ModuleLoader__.load({
           .catch((e) => setError(e.message));
       }, [open]);
 
+      useEffect(() => {
+        if (!open) return;
+        const onKey = (e) => {
+          if (e.key === 'Escape') setRemoteOpen(false);
+        };
+        window.addEventListener('keydown', onKey);
+        return () => window.removeEventListener('keydown', onKey);
+      }, [open]);
+
       if (!open) return null;
       const peer = peers.find((p) => p.id === tab);
 
-      return h('div', {
-        style: { position: 'fixed', inset: 0, zIndex: 9999, background: '#0f1115', color: '#e6e6e6', display: 'flex', flexDirection: 'column' },
+      const content = h('div', {
+        style: {
+          position: 'fixed', inset: 0, zIndex: 9999, background: '#0f1115', color: '#e6e6e6',
+          display: 'flex', flexDirection: 'column',
+          paddingTop: 'env(safe-area-inset-top)', paddingBottom: 'env(safe-area-inset-bottom)',
+        },
       },
         h('div', { style: { display: 'flex', gap: 8, alignItems: 'center', padding: '8px 12px', borderBottom: '1px solid #262b36', flexWrap: 'wrap' } },
           h('span', { style: { fontSize: 13, fontWeight: 600 } }, '远程设备'),
@@ -124,9 +167,25 @@ window.__ModuleLoader__.load({
           h('button', { type: 'button', style: { ...ghost, height: 30 }, onClick: () => setRemoteOpen(false) }, '关闭')),
         error ? h('div', { style: { padding: 12, color: '#f87171', fontSize: 12 } }, error) : null,
         peer
-          ? h('iframe', { src: peer.url, title: peer.name, style: { flex: 1, border: 0, width: '100%', background: '#fff' } })
+          ? h('iframe', {
+              src: peer.url,
+              title: peer.name,
+              style: { flex: 1, border: 0, width: '100%', background: '#fff' },
+              allow: 'clipboard-read; clipboard-write',
+            })
           : h('div', { style: { padding: 24, fontSize: 13, color: '#8b93a1' } },
-              peers.length ? '选择一台设备' : '还没有远程设备：到 设置 → 远程访问 → 远程设备 添加另一台装了本插件的电脑。'));
+              peers.length
+                ? '选择一台设备'
+                : '还没有远程设备：到 设置 → 远程访问 → 远程设备 添加另一台装了本插件的电脑。',
+              h('div', { style: { marginTop: 16 } },
+                h('button', { type: 'button', style: ghost, onClick: () => setRemoteOpen(false) }, '关闭'))));
+
+      // 挂到 body，避免被侧边栏的 transform/overflow 裁剪
+      return createPortal ? createPortal(content, document.body) : content;
+    }
+
+    function RemotePanelRoot() {
+      return h(RemoteBoundary, null, h(RemotePanel));
     }
 
     function HubSettings() {
@@ -488,7 +547,7 @@ window.__ModuleLoader__.load({
         ctx.slots.inject('shell.overlay', () =>
           ctx.slots.register(
             { name: 'shell.overlay', id: 'dsh-hub-remote-panel', order: 100 },
-            RemotePanel,
+            RemotePanelRoot,
           ),
         );
       },
