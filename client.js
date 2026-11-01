@@ -9,7 +9,7 @@ window.__ModuleLoader__.load({
   factory(require) {
     const React = require('react');
     const h = React.createElement;
-    const { useState, useEffect, useCallback } = React;
+    const { useState, useEffect, useCallback, useRef } = React;
 
     const muted = { color: 'var(--dsw-alias-label-tertiary,#8b93a1)', fontSize: 12, lineHeight: 1.7 };
     const label = { fontSize: 12, color: 'var(--dsw-alias-label-secondary,#5b6472)', marginBottom: 4, display: 'block' };
@@ -112,11 +112,40 @@ window.__ModuleLoader__.load({
       }
     }
 
+    // 测量 DSH 布局：侧边栏右边缘 + 标题栏底边，让浮层只占内容区
+    function measureLayout() {
+      let left = 0;
+      let top = 0;
+      try {
+        let el = document.elementFromPoint(8, Math.round(window.innerHeight / 2));
+        while (el && el !== document.body) {
+          const r = el.getBoundingClientRect();
+          if (r.left <= 1 && r.width > 60 && r.width < window.innerWidth * 0.45) {
+            left = Math.max(left, r.right);
+          }
+          el = el.parentElement;
+        }
+        let hd = document.elementFromPoint(Math.round(window.innerWidth / 2), 4);
+        while (hd && hd !== document.body) {
+          const r = hd.getBoundingClientRect();
+          if (r.top <= 1 && r.width > window.innerWidth * 0.5 && r.height > 20 && r.height < 140) {
+            top = Math.max(top, r.bottom);
+          }
+          hd = hd.parentElement;
+        }
+      } catch {}
+      if (left <= 0 || left > window.innerWidth * 0.5) left = 0;
+      if (top <= 0 || top > 160) top = 0;
+      return { left: Math.round(left), top: Math.round(top) };
+    }
+
     function RemotePanel() {
       const open = useRemoteOpen();
       const [peers, setPeers] = useState([]);
       const [tab, setTab] = useState('');
       const [error, setError] = useState('');
+      const [chrome, setChrome] = useState({ left: 0, top: 0 });
+      const panelRef = useRef(null);
 
       useEffect(() => {
         if (!open) return;
@@ -132,6 +161,21 @@ window.__ModuleLoader__.load({
 
       useEffect(() => {
         if (!open) return;
+        const update = () => {
+          const el = panelRef.current;
+          const prev = el ? el.style.visibility : '';
+          if (el) el.style.visibility = 'hidden';
+          const next = measureLayout();
+          if (el) el.style.visibility = prev || 'visible';
+          setChrome(next);
+        };
+        update();
+        window.addEventListener('resize', update);
+        return () => window.removeEventListener('resize', update);
+      }, [open]);
+
+      useEffect(() => {
+        if (!open) return;
         const onKey = (e) => {
           if (e.key === 'Escape') setRemoteOpen(false);
         };
@@ -143,10 +187,22 @@ window.__ModuleLoader__.load({
       const peer = peers.find((p) => p.id === tab);
 
       const content = h('div', {
+        ref: panelRef,
         style: {
-          position: 'fixed', inset: 0, zIndex: 9999, background: '#0f1115', color: '#e6e6e6',
-          display: 'flex', flexDirection: 'column',
-          paddingTop: 'env(safe-area-inset-top)', paddingBottom: 'env(safe-area-inset-bottom)',
+          position: 'fixed',
+          left: chrome.left,
+          top: chrome.top,
+          right: 0,
+          bottom: 0,
+          zIndex: 9999,
+          background: '#0f1115',
+          color: '#e6e6e6',
+          display: 'flex',
+          flexDirection: 'column',
+          borderLeft: chrome.left > 0 ? '1px solid #262b36' : 'none',
+          borderTop: chrome.top > 0 ? '1px solid #262b36' : 'none',
+          paddingTop: 'env(safe-area-inset-top)',
+          paddingBottom: 'env(safe-area-inset-bottom)',
         },
       },
         h('div', { style: { display: 'flex', gap: 8, alignItems: 'center', padding: '8px 12px', borderBottom: '1px solid #262b36', flexWrap: 'wrap' } },
@@ -554,4 +610,5 @@ window.__ModuleLoader__.load({
     };
   },
 });
+
 
