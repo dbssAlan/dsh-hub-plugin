@@ -1,6 +1,6 @@
 {
   "name": "dsh-hub-plugin",
-  "version": "0.7.0-beta.3",
+  "version": "0.8.0",
   "description": "把 DSH 安全地发布到局域网/公网：访问密码、二维码、设备导航、cloudflared 隧道，全部在设置页里管理。",
   "type": "module",
   "main": "index.js",
@@ -20,7 +20,10 @@
     "README.md",
     "LICENSE",
     "SECURITY.md",
-    "CHANGELOG.md"
+    "CHANGELOG.md",
+    "docs",
+    "dsh-hub.sh",
+    "dsh-hub.cmd"
   ],
   "dsh": {
     "bundle": {
@@ -53,23 +56,15 @@
     "url": "https://github.com/dbssAlan/dsh-hub-plugin/issues"
   },
   "engines": {
-    "node": ">=22"
+    "node": ">=22",
+    "dsh": ">=0.2.1-rc.1"
   },
   "publishConfig": {
     "registry": "https://registry.npmjs.org/",
     "access": "public"
+  },
+  "scripts": {
+    "test": "node scripts/test.mjs",
+    "check": "node --check index.js && node --check client.js && node --check lib/hub-cli.mjs"
   }
 }
-
-
-
-
-
-
-
-
-
-
-
-
-

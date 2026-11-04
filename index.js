@@ -10,6 +10,7 @@
  * 安全默认：enabled=false；密码至少 8 位；写接口要求同源 Origin。
  */
 import { spawn } from 'node:child_process';
+import { randomBytes } from 'node:crypto';
 import fs from 'node:fs';
 import { createRequire } from 'node:module';
 import os from 'node:os';
@@ -19,6 +20,11 @@ import { fileURLToPath } from 'node:url';
 const require = createRequire(import.meta.url);
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const CLI = path.join(HERE, 'lib', 'hub-cli.mjs');
+
+// 管理面令牌：只在本宿主进程与子进程之间共享；设置页的请求由这里注入，
+// 浏览器永远拿不到它。隧道流量即使回源 127.0.0.1 也过不了管理接口。
+const ADMIN_TOKEN = randomBytes(24).toString('hex');
+const LOG_MAX_BYTES = 5 * 1024 * 1024;
 
 export const name = 'dsh-hub-plugin';
 
@@ -82,7 +88,25 @@ function readConfigFile(file) {
 
 function writeConfigFile(file, cfg) {
   fs.mkdirSync(path.dirname(file), { recursive: true });
-  fs.writeFileSync(file, JSON.stringify(cfg, null, 2), { mode: 0o600 });
+  const tmp = `${file}.${process.pid}.${Date.now()}.tmp`;
+  fs.writeFileSync(tmp, JSON.stringify(cfg, null, 2), { mode: 0o600 });
+  fs.renameSync(tmp, file);
+}
+
+function writeStatusFile(file, patch) {
+  try {
+    let prev = {};
+    try { prev = JSON.parse(fs.readFileSync(file, 'utf8')); } catch {}
+    const tmp = `${file}.${process.pid}.${Date.now()}.tmp`;
+    fs.writeFileSync(tmp, JSON.stringify({ ...prev, ...patch, updatedAt: new Date().toISOString() }, null, 2), { mode: 0o600 });
+    fs.renameSync(tmp, file);
+  } catch {}
+}
+
+function rotateLog(file) {
+  try {
+    if (fs.statSync(file).size > LOG_MAX_BYTES) fs.renameSync(file, `${file}.1`);
+  } catch {}
 }
 
 function readBody(req, limit = 64 * 1024) {
@@ -120,6 +144,14 @@ export function apply(ctx, config) {
       path: '/dsh-hub',
       handler: async (req, res) => {
         try {
+          // 只接受本机直连（桌面端设置页）；经 Hub 反代进来的请求一律拒绝。
+          // 不能只靠 127.0.0.1 判断：hub 子进程代理到宿主时来源也是 loopback。
+          if (req.headers['x-dsh-hub-proxy'] === '1'
+            || !['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(req.socket.remoteAddress ?? '')) {
+            res.writeHead(403, { 'content-type': 'text/plain; charset=utf-8' });
+            res.end('local settings only\n');
+            return;
+          }
           const u = new URL(req.url ?? '/dsh-hub', 'http://hub.invalid');
           const sub = u.pathname.slice('/dsh-hub'.length) || '/';
           const routes = {
@@ -158,6 +190,7 @@ export function apply(ctx, config) {
             method: req.method,
             headers: {
               'x-dsh-hub': '1',
+              'x-dsh-hub-admin': ADMIN_TOKEN,
               'content-type': req.headers['content-type'] ?? 'application/json',
             },
             body: body && body.length ? body : undefined,
@@ -190,29 +223,39 @@ export function apply(ctx, config) {
     const spawnChild = () => {
       if (stopped) return;
       const cfg = readConfigFile(configFile) ?? initial;
-      const target = cfg.targetPort || Number(ctx.webServer?.port) || 0;
+      rotateLog(logFile);
       const args = [
         CLI,
         '--config-file', configFile,
         '--status-file', statusFile,
         '--port', String(cfg.listenPort),
+        '--admin-token', ADMIN_TOKEN,
+        '--no-print-key',
       ];
-      if (target) args.push('--target', String(target));
+      // targetPort=0：不固定端口，让子进程自动探测（宿主换端口后能自动跟上）
+      if (cfg.targetPort > 0) args.push('--target', String(cfg.targetPort));
+      const env = { ...process.env, ELECTRON_RUN_AS_NODE: '1' };
       if (!cfg.enabled || cfg.password.length < 8) {
         args.push('--disabled');
       } else {
-        args.push('--key', cfg.password);
+        // 密码走环境变量而不是 argv，避免出现在进程命令行里
+        env.DSH_HUB_LOGIN_KEY = cfg.password;
         if (cfg.tunnel === 'off') args.push('--no-tunnel');
-        if (cfg.tunnel === 'named' && cfg.tunnelToken) {
+        else if (cfg.tunnel === 'named' && cfg.tunnelToken) {
           args.push('--tunnel-token', cfg.tunnelToken);
           if (cfg.publicUrl) args.push('--public-url', cfg.publicUrl);
+        } else if (cfg.tunnel === 'named') {
+          args.push('--no-tunnel');
         }
       }
 
       let fd;
-      try { fd = fs.openSync(logFile, 'a'); } catch { fd = 'ignore'; }
+      try {
+        fd = fs.openSync(logFile, 'a', 0o600);
+        try { fs.fchmodSync(fd, 0o600); } catch {}
+      } catch { fd = 'ignore'; }
       child = spawn(process.execPath, args, {
-        env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' },
+        env,
         stdio: ['ignore', fd, fd],
         windowsHide: true,
       });
@@ -226,6 +269,7 @@ export function apply(ctx, config) {
         restarts += 1;
         if (restarts > 30) {
           console.error('[dsh-hub] 重启过于频繁，已暂停。日志：', logFile);
+          writeStatusFile(statusFile, { error: `hub 子进程连续重启 ${restarts} 次，已暂停`, tunnel: 'error' });
           return;
         }
         timer = setTimeout(spawnChild, code === 0 ? 400 : 2000);

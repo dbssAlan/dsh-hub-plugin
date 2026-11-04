@@ -12,14 +12,14 @@
 
 ## 特性
 
-- **访问密码**：URL 不含密码，打开后必须输入；登录后 30 天 HttpOnly Cookie
+- **访问密码**：URL 不含密码，打开后必须输入；登录后 30 天 HttpOnly Cookie（HTTPS 下自动 Secure）
 - **局域网 + 公网**：同一 WiFi 直连；公网用 cloudflared（免费随机域名，或命名隧道固定域名）
 - **设备导航页**：二维码、分享链接、访问密码，一键复制
 - **远程设备（多机互控）**：添加另一台装了本插件的电脑，侧边栏浮层里直接操作它的 DSH
 - **桌面版直连**：直接发布 Electron 桌面版宿主，不额外起第二个宿主
-- **多宿主冲突提示**：检测到桌面版与 `dsh web` 同时运行会提醒（避免会话写租约互相锁）
+- **多宿主冲突提示**：启动日志会提示桌面版与 `dsh web` 同时运行（避免会话写租约互相锁）
 - **插件形态**：随 DSH 启停，设置页开关，无需单独开终端
-- **安全默认**：默认关闭；密码至少 8 位；写接口需 `x-dsh-hub` 头（防 CSRF）
+- **安全默认**：默认关闭；密码至少 8 位；管理接口只接受宿主注入的随机令牌，公网无法调用
 
 ---
 
@@ -58,6 +58,8 @@ DSH 默认只监听 `127.0.0.1`，并对 Host 有校验。Hub 在本机做反向
 ```
 dsh-hub-plugin
 ```
+
+> npm 上的最新版本从 **0.8.0** 起；如果你看到的是 0.3.x，说明只用过早期发布，请优先用下面的 GitHub 方式或升级。
 
 - **桌面版**：设置 → 插件 → 添加插件，填 `dsh-hub-plugin`
 - **命令行（web profile）**：
@@ -141,11 +143,13 @@ DSH_HOME=/path/to/home dsh plugin --profile web add -w /path/to/dsh-hub-plugin
 ## 安全模型
 
 - **访问密码是唯一门槛**，且不在 URL 里；链接被转发也无法直接进入
-- 登录 Cookie：30 天、`HttpOnly`、`SameSite=Lax`
-- 登录失败限速：5 次 / 60 秒
-- 设置页写接口走宿主同源路由 `/dsh-hub/*`，校验 `x-dsh-hub` 请求头（防 CSRF）
-- 访问密码字段可「显示 / 隐藏」；「查看」按钮（点击或长按）会读取已保存密码，仅对已登录的设置页生效
-- 普通配置接口不回显密码，仅 `_config?reveal=1` 返回
+- 登录 Cookie：30 天、`HttpOnly`、`SameSite=Lax`；HTTPS（含隧道）下自动 `Secure`
+- 登录失败限速：同一来源 5 次 / 60 秒（隧道场景按 `CF-Connecting-IP` 识别来源）
+- **管理接口只接受宿主每次启动生成的随机令牌**：公网/隧道流量即使回源 127.0.0.1 也调不到 `/_config`、`/_sessions`、`/_peers`
+- 设置页写接口走宿主同源路由 `/dsh-hub/*`，只接受本机直连浏览器；经 Hub 反代的请求一律 403
+- 访问密码字段支持显示 / 隐藏（保存后点一次即可取回显示），仅本机设置页可用
+- 添加远程设备时会拒绝内网 / 回环 / 云元数据地址（防 SSRF）
+- 只有本机页面嵌入时才放开 iframe 限制，其他网站无法把 DSH 嵌进页面（防点击劫持）
 - 公网入口由 cloudflared 提供 TLS，本机端口不直接暴露
 
 **注意**：DSH 可以执行本机命令，密码泄露等于电脑控制权。密码明文保存在 `config.json`（权限 0600），建议用 16 位以上随机串；公网长期使用建议叠加 Cloudflare Access。
@@ -161,8 +165,8 @@ DSH_HOME=/path/to/home dsh plugin --profile web add -w /path/to/dsh-hub-plugin
 - **二维码**：直接显示当前公网/局域网地址，手机扫码即可打开
 - **设备会话**：每台登录过的设备（浏览器 + 系统、IP、最近活跃时间），可**逐个撤销**或**撤销全部**
   - 撤销后该设备下一次请求就会被要求重新登录，不影响其他设备
-- **登录审计**：最近 100 条记录（登录成功/失败、撤销、配置变更），写入
-  `%DSH_HOME%/dsh-hub-plugin/audit.jsonl`
+- **登录审计**：设置页显示最近 10 条（接口最多返回 100 条），记录登录成功/失败、撤销、配置变更，写入
+  `%DSH_HOME%/dsh-hub-plugin/audit.jsonl`（超过 2 MB 自动轮转为 `audit.jsonl.1`）
 
 > 会话 Cookie 名为 `dsh-hub-sid`，与 DSH 登录 Cookie 一起下发；
 > 撤销只影响 Hub 的会话，不改变 DSH 本身的密钥。
@@ -180,11 +184,11 @@ DSH_HOME=/path/to/home dsh plugin --profile web add -w /path/to/dsh-hub-plugin
 
 跨平台适配点：
 
-- **cloudflared** 按平台/架构下载：`windows-amd64.exe`、`darwin-amd64/arm64.tgz`、`linux-amd64/arm64`；macOS 自动解压并 `chmod 755`
+- **cloudflared** 按平台/架构下载：`windows-amd64.exe`、`darwin-amd64/arm64.tgz`、`linux-amd64/arm64`；macOS 自动解压并 `chmod 755`，下载后按 GitHub Release 的 sha256 校验
 - **端口/进程扫描**：Windows 用 `netstat/tasklist`；macOS/Linux 用 `lsof`/`ss`/`ps`
 - **凭据**：要求 `~/.dsh/.credentials.yaml`；macOS 若改用系统钥匙串，当前版本会给出明确错误
-- **独立运行**：mac/Linux 用 `./dsh-hub.sh` 或 `node dsh-hub.mjs`；Windows 用 `dsh-hub.cmd`
-- **CI**：GitHub Actions 在 ubuntu / macos / windows 三平台跑语法检查 + 启动冒烟
+- **独立运行**：mac/Linux 用 `./dsh-hub.sh`，Windows 用 `dsh-hub.cmd`（等价于直接 `node lib/hub-cli.mjs`）
+- **CI**：GitHub Actions 在 ubuntu / macos / windows 三平台跑语法检查 + 端到端测试（`scripts/test.mjs`）
 
 > macOS 桌面版：DSH 桌面端支持插件页安装时，本插件与 Windows 行为一致（宿主会直接传入端口，无需扫描）。
 >
@@ -204,7 +208,8 @@ DSH_HOME=/path/to/home dsh plugin --profile web add -w /path/to/dsh-hub-plugin
 4. 关闭浮层回到本地 DSH
 
 **边界**：浮层是「远程操作对端 DSH」，不会把 B 的工作区/会话合并进 A 的侧边栏；
-会话仍各自存储。需要的话可在 `%DSH_HOME%\dsh-hub-devices.json` 里做双向登记。
+会话仍各自存储。对端是跨源 iframe，浏览器第三方 Cookie 策略可能要求每次重新输入 B 的密码；
+需要真正的远程工作区挂载/会话同步，见路线图（依赖 DSH 核心扩展）。
 
 ### 单中心（共享同一批会话）
 
@@ -233,7 +238,9 @@ DSH_HOME=/path/to/home dsh plugin --profile web add -w /path/to/dsh-hub-plugin
 | 现象 | 处理 |
 |---|---|
 | 设置页显示「连不上宿主管理路由」 | 确认插件已启用、桌面版已重启；必要时 `Ctrl + R` 刷新页面 |
-| 公网 401 `dsh web authentication required` | 直接访问了不带密码的 URL；先打开登录页输入密码（或用带口令链接登录一次） |
+| 公网 401 `dsh web authentication required` | 直接访问了不带密码的 URL；先打开登录页输入密码 |
+| 设置页提示 403 / `admin token required` | 宿主与子进程版本不一致（升级后未重启桌面端）；重启一次桌面端 |
+| 局域网地址打不开 | 确认手机与电脑同一 WiFi、系统防火墙放行 19388；v0.8.0 之前的版本局域网会被 403 |
 | `error 1033` / 隧道连不上 | 本机代理/VPN 的 TUN 模式可能掐断隧道；关 TUN，或给 `trycloudflare.com`、`argotunnel.com` 加直连规则 |
 | `session/writer-held` | 另一个 DSH 宿主占着会话；只保留一个宿主（桌面版或 `dsh web`） |
 | 端口 19388 被占用 | 设置页改 `listenPort`，或先在 `/_health` 确认是否已有实例 |
@@ -274,6 +281,7 @@ cd dsh-hub-plugin
 node --check index.js
 node --check client.js
 node --check lib/hub-cli.mjs
+node scripts/test.mjs        # 端到端：登录/限速/撤销/管理令牌/SSRF/反代/iframe
 ```
 
 目录：
@@ -284,6 +292,7 @@ client.js          # 浏览器半：设置页（settings.section）
 lib/hub-cli.mjs    # 反代/密码页/设备页/隧道（可独立运行）
 lib/vendor/        # 离线二维码库
 locale/            # 插件市场显示用
+scripts/test.mjs   # 端到端回归测试（CI 三平台运行）
 ```
 
 独立运行（不经插件，便于调试）：
@@ -291,6 +300,14 @@ locale/            # 插件市场显示用
 ```bash
 node lib/hub-cli.mjs --port 19388 --no-tunnel
 ```
+
+独立运行会打印一个**管理令牌**（每次启动不同）。调试管理接口时带上：
+
+```bash
+curl -H "x-dsh-hub-admin: <令牌>" http://127.0.0.1:19388/_status
+```
+
+在插件模式里这个令牌由宿主注入，浏览器永远看不到，公网也调不到管理接口。
 
 ### 安全启动/清理测试宿主（重要）
 
@@ -319,6 +336,7 @@ pwsh -File scripts/test-host.ps1 -Action stop
 | `client.js`（设置页 UI） | 需要重启桌面端一次（客户端模块代际） |
 
 重载只需几秒，期间隧道会短暂断开；快速隧道会换一个新地址，命名隧道地址不变。
+**0.8.0 起管理令牌随宿主启动生成**：升级 `index.js` 后必须重启一次桌面端，否则设置页会提示 403 / `admin token required`。
 
 手动重载（按 PID，不要按进程名）：
 
@@ -340,7 +358,10 @@ if ($line) {
 - [x] v0.4 PWA（添加到主屏幕）+ 移动端安全区样式
 - [x] v0.5 设备会话与撤销、登录审计、设置页二维码
 - [x] v0.6 远程设备配对、侧边栏浮层互控（iframe）、单中心说明
-- [ ] v0.7 原生远程工作区挂载 / 跨机会话同步（需 DSH 核心扩展）
+- [x] v0.7 跨平台（macOS/Linux）、浮层只占内容区、热重载
+- [x] v0.8 安全收口：管理令牌、局域网修复、SSRF/iframe/Cookie/限速、端到端测试
+- [ ] v0.9 远程设备改为同源反代（消除第三方 Cookie 限制）
+- [ ] v1.0 原生远程工作区挂载 / 跨机会话同步（需 DSH 核心扩展）
 
 ### 手机「添加到主屏幕」
 
@@ -360,6 +381,8 @@ iOS Safari 是「分享 → 添加到主屏幕」，Android/华为浏览器是�
 ## English
 
 DSH Hub is a DeepSeek Harness plugin that exposes your local DSH instance to LAN or the public internet behind an access password. It reverse-proxies the DSH host (desktop Electron or `dsh web`), rewrites the Host header, mints a valid session cookie, and optionally starts a cloudflared quick or named tunnel. Everything is configured from the DSH settings page (`Ctrl + ,` → Remote Access).
+
+Since 0.8.0, admin endpoints (`/_status`, `/_config`, `/_sessions`, `/_peers`, …) require a per-launch random token injected by the host, so tunnel traffic can no longer reach them even though it originates from 127.0.0.1. LAN access, SSRF protection, Secure cookies, iframe allow-listing and sha256-verified cloudflared downloads are included.
 
 Install:
 

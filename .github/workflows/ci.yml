@@ -5,7 +5,7 @@ on:
   pull_request:
 
 jobs:
-  smoke:
+  test:
     strategy:
       fail-fast: false
       matrix:
@@ -22,6 +22,7 @@ jobs:
           node --check index.js
           node --check client.js
           node --check lib/hub-cli.mjs
-      - name: Startup smoke (disabled mode)
+          node --check scripts/test.mjs
+      - name: End-to-end tests (login / tokens / proxy / SSRF / rate limit)
         shell: bash
-        run: node scripts/smoke.mjs
+        run: node scripts/test.mjs

@@ -145,6 +145,7 @@ window.__ModuleLoader__.load({
       const [tab, setTab] = useState('');
       const [error, setError] = useState('');
       const [chrome, setChrome] = useState({ left: 0, top: 0 });
+      const [loading, setLoading] = useState(true);
       const panelRef = useRef(null);
 
       useEffect(() => {
@@ -182,6 +183,11 @@ window.__ModuleLoader__.load({
         window.addEventListener('keydown', onKey);
         return () => window.removeEventListener('keydown', onKey);
       }, [open]);
+
+      // 浮层打开或切换设备时，先显示连接提示，等 iframe onLoad 再收起
+      useEffect(() => {
+        setLoading(true);
+      }, [open, tab]);
 
       if (!open) return null;
       const peer = peers.find((p) => p.id === tab);
@@ -226,6 +232,9 @@ window.__ModuleLoader__.load({
           ? h('iframe', {
               src: peer.url,
               title: peer.name,
+              onLoad: () => setLoading(false),
+              sandbox: 'allow-scripts allow-same-origin allow-forms allow-popups allow-downloads allow-modals',
+              referrerPolicy: 'no-referrer',
               style: { flex: 1, border: 0, width: '100%', background: '#fff' },
               allow: 'clipboard-read; clipboard-write',
             })
@@ -234,7 +243,15 @@ window.__ModuleLoader__.load({
                 ? '选择一台设备'
                 : '还没有远程设备：到 设置 → 远程访问 → 远程设备 添加另一台装了本插件的电脑。',
               h('div', { style: { marginTop: 16 } },
-                h('button', { type: 'button', style: ghost, onClick: () => setRemoteOpen(false) }, '关闭'))));
+                h('button', { type: 'button', style: ghost, onClick: () => setRemoteOpen(false) }, '关闭'))),
+        peer && loading
+          ? h('div', {
+              style: {
+                position: 'absolute', left: 0, right: 0, bottom: 16, textAlign: 'center',
+                fontSize: 12, color: '#8b93a1', pointerEvents: 'none',
+              },
+            }, '正在连接远程设备…')
+          : null);
 
       // 挂到 body，避免被侧边栏的 transform/overflow 裁剪
       return createPortal ? createPortal(content, document.body) : content;
@@ -242,6 +259,24 @@ window.__ModuleLoader__.load({
 
     function RemotePanelRoot() {
       return h(RemoteBoundary, null, h(RemotePanel));
+    }
+
+    // 先读文本再解析：宿主或代理可能返回 HTML 错误页，直接 r.json() 会报 Unexpected token '<'
+    function parseJsonText(text) {
+      try {
+        return JSON.parse(text);
+      } catch {
+        throw new Error('宿主返回了非 JSON 响应（可能是代理错误页）');
+      }
+    }
+
+    // 动作请求：非 2xx 时抛出服务器文本（截断），绝不静默吞掉失败
+    async function checkAction(r) {
+      const text = await r.text();
+      let j = null;
+      try { j = JSON.parse(text); } catch {}
+      if (!r.ok) throw new Error(j?.error || text.slice(0, 120) || `HTTP ${r.status}`);
+      return j;
     }
 
     function HubSettings() {
@@ -258,6 +293,8 @@ window.__ModuleLoader__.load({
       const [peerName, setPeerName] = useState('');
       const [peerUrl, setPeerUrl] = useState('');
       const [peerMsg, setPeerMsg] = useState('');
+      // 正在执行的动作（'revoke:id' / 'revoke-all' / 'peer:id' / 'reload'），驱动按钮文案与禁用
+      const [busyAction, setBusyAction] = useState('');
 
       const load = useCallback(async () => {
         setError('');
@@ -265,11 +302,11 @@ window.__ModuleLoader__.load({
           const [c, s] = await Promise.all([
             fetch('/dsh-hub/config', { cache: 'no-store' }).then((r) => {
               if (!r.ok) throw new Error(`/dsh-hub/config ${r.status}`);
-              return r.json();
+              return r.text().then(parseJsonText);
             }),
             fetch('/dsh-hub/status', { cache: 'no-store' }).then((r) => {
               if (!r.ok) throw new Error(`/dsh-hub/status ${r.status}`);
-              return r.json();
+              return r.text().then(parseJsonText);
             }),
           ]);
           setCfg(c);
@@ -292,24 +329,39 @@ window.__ModuleLoader__.load({
       }, []);
 
       const revokeSession = async (id) => {
+        setError('');
+        setBusyAction(`revoke:${id}`);
         try {
-          await fetch('/dsh-hub/sessions/revoke', {
+          const r = await fetch('/dsh-hub/sessions/revoke', {
             method: 'POST',
             headers: { 'content-type': 'application/json', 'x-dsh-hub': '1' },
             body: JSON.stringify({ id }),
           });
+          await checkAction(r);
           await load();
-        } catch {}
+        } catch (e) {
+          setError(`撤销失败：${e.message}`);
+        } finally {
+          setBusyAction('');
+        }
       };
       const revokeAll = async () => {
+        if (!confirm('确定撤销全部设备？所有手机/平板需要重新输入访问密码。')) return;
+        setError('');
+        setBusyAction('revoke-all');
         try {
-          await fetch('/dsh-hub/sessions/revoke-all', {
+          const r = await fetch('/dsh-hub/sessions/revoke-all', {
             method: 'POST',
             headers: { 'content-type': 'application/json', 'x-dsh-hub': '1' },
             body: '{}',
           });
+          await checkAction(r);
           await load();
-        } catch {}
+        } catch (e) {
+          setError(`撤销全部失败：${e.message}`);
+        } finally {
+          setBusyAction('');
+        }
       };
 
       const addPeer = async () => {
@@ -334,14 +386,21 @@ window.__ModuleLoader__.load({
       };
 
       const removePeer = async (id) => {
+        setPeerMsg('');
+        setBusyAction(`peer:${id}`);
         try {
-          await fetch('/dsh-hub/peers/remove', {
+          const r = await fetch('/dsh-hub/peers/remove', {
             method: 'POST',
             headers: { 'content-type': 'application/json', 'x-dsh-hub': '1' },
             body: JSON.stringify({ id }),
           });
+          await checkAction(r);
           await load();
-        } catch {}
+        } catch (e) {
+          setPeerMsg(`移除失败：${e.message}`);
+        } finally {
+          setBusyAction('');
+        }
       };
 
       useEffect(() => { load(); }, []);
@@ -415,21 +474,27 @@ window.__ModuleLoader__.load({
       const reloadPlugin = async () => {
         setNotice('正在重载插件…');
         setError('');
+        setBusyAction('reload');
         try {
-          await fetch('/dsh-hub/reload', {
+          const r = await fetch('/dsh-hub/reload', {
             method: 'POST',
             headers: { 'content-type': 'application/json', 'x-dsh-hub': '1' },
             body: '{}',
           });
-        } catch {}
-        for (let i = 0; i < 20; i += 1) {
-          await new Promise((r) => setTimeout(r, 500));
-          try {
-            const st = await fetch('/dsh-hub/status', { cache: 'no-store' });
-            if (st.ok) { await load(); setNotice('插件已重载'); return; }
-          } catch {}
+          await checkAction(r);
+          for (let i = 0; i < 20; i += 1) {
+            await new Promise((r) => setTimeout(r, 500));
+            try {
+              const st = await fetch('/dsh-hub/status', { cache: 'no-store' });
+              if (st.ok) { await load(); setNotice('插件已重载'); return; }
+            } catch {}
+          }
+          setNotice('重载超时，请点「重新读取」');
+        } catch (e) {
+          setError(`重载失败：${e.message}`);
+        } finally {
+          setBusyAction('');
         }
-        setNotice('重载超时，请点「重新读取」');
       };
 
       // 一个按钮：空且已保存 → 取回并显示；否则切换明文/密文
@@ -449,7 +514,9 @@ window.__ModuleLoader__.load({
 
       const pub = status?.publicUrl || '';
       const origin = typeof location !== 'undefined' ? location.origin : `http://127.0.0.1:${status?.listenPort || 19388}`;
-      const devices = `${(pub || origin).replace(/\/$/, '')}/_devices`;
+      // 无公网地址时优先用局域网地址（手机扫码需与宿主同网段）
+      const base = pub || status?.lanUrl || origin;
+      const devices = `${base.replace(/\/$/, '')}/_devices`;
 
       return h('div', { style: { maxWidth: 620, padding: '4px 0' } },
         h('h3', { style: { margin: '0 0 4px', fontSize: 15 } }, 'DSH Hub 远程访问'),
@@ -481,7 +548,7 @@ window.__ModuleLoader__.load({
 
         h('div', { style: { display: 'flex', gap: 16, alignItems: 'center', marginBottom: 16, flexWrap: 'wrap' } },
           h('img', {
-            src: `/dsh-hub/qr?data=${encodeURIComponent(pub || origin)}`,
+            src: `/dsh-hub/qr?data=${encodeURIComponent(base)}`,
             width: 150, height: 150, alt: '扫码访问',
             style: { background: '#fff', padding: 6, borderRadius: 10 },
           }),
@@ -492,17 +559,20 @@ window.__ModuleLoader__.load({
         h('div', { style: { borderTop: '1px solid var(--dsw-alias-border-l2,#e5e7eb)', paddingTop: 14, marginBottom: 14 } },
           h('div', { style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 } },
             h('div', { style: { ...label, marginBottom: 0 } }, '设备会话'),
-            h('button', { style: ghost, onClick: revokeAll }, '撤销全部')),
+            h('button', { style: ghost, disabled: !!busyAction, onClick: revokeAll }, busyAction === 'revoke-all' ? '撤销中…' : '撤销全部')),
           sessions.length
             ? h('div', { style: { fontSize: 12 } },
-                sessions.map((s) => h('div', {
-                  key: s.fullId || s.id,
-                  style: { display: 'flex', alignItems: 'center', gap: 10, padding: '6px 0', borderBottom: '1px solid var(--dsw-alias-border-l3,#eee)' },
-                },
-                  h('span', { style: { minWidth: 110 } }, s.name),
-                  h('span', { style: { ...muted, flex: 1 } }, s.ip || '-'),
-                  h('span', { style: { ...muted, minWidth: 140 } }, s.revokedAt ? '已撤销' : new Date(s.lastSeenAt).toLocaleString()),
-                  h('button', { style: ghost, onClick: () => revokeSession(s.fullId || s.id) }, '撤销'))))
+                sessions.map((s) => {
+                  const sid = s.fullId || s.id;
+                  return h('div', {
+                    key: sid,
+                    style: { display: 'flex', alignItems: 'center', gap: 10, padding: '6px 0', borderBottom: '1px solid var(--dsw-alias-border-l3,#eee)' },
+                  },
+                    h('span', { style: { minWidth: 110 } }, s.name),
+                    h('span', { style: { ...muted, flex: 1 } }, s.ip || '-'),
+                    h('span', { style: { ...muted, minWidth: 140 } }, s.revokedAt ? '已撤销' : new Date(s.lastSeenAt).toLocaleString()),
+                    h('button', { style: ghost, disabled: !!busyAction, onClick: () => revokeSession(sid) }, busyAction === `revoke:${sid}` ? '撤销中…' : '撤销'));
+                }))
             : h('p', { style: muted }, '暂无活跃会话'),
 
           h('div', { style: { ...label, marginTop: 12 } }, '最近登录审计'),
@@ -519,7 +589,7 @@ window.__ModuleLoader__.load({
           peers.map((p) => h('div', { key: p.id, style: { display: 'flex', alignItems: 'center', gap: 8, padding: '4px 0' } },
             h('span', { style: { minWidth: 90 } }, p.name),
             h('span', { style: { ...muted, flex: 1, wordBreak: 'break-all' } }, p.url),
-            h('button', { type: 'button', style: ghost, onClick: () => removePeer(p.id) }, '移除'))),
+            h('button', { type: 'button', style: ghost, disabled: !!busyAction, onClick: () => removePeer(p.id) }, busyAction === `peer:${p.id}` ? '移除中…' : '移除'))),
           h('div', { style: { display: 'flex', alignItems: 'center', gap: 8, marginTop: 8 } },
             h('input', { style: { ...input, width: 110, flexShrink: 0 }, placeholder: '名称', value: peerName, onChange: (e) => setPeerName(e.target.value) }),
             h('input', { style: { ...input, flex: 1, minWidth: 0 }, placeholder: 'https://另一台设备地址', value: peerUrl, onChange: (e) => setPeerUrl(e.target.value) }),
@@ -574,7 +644,7 @@ window.__ModuleLoader__.load({
 
           h('div', { style: { display: 'flex', gap: 10, marginTop: 8 } },
             h('button', { style: primary, disabled: busy, onClick: save }, busy ? '保存中…' : '保存并重启'),
-            h('button', { style: { ...ghost, disabled: busy }, onClick: reloadPlugin }, '重载插件'),
+            h('button', { style: { ...ghost, disabled: busy || !!busyAction }, onClick: reloadPlugin }, busyAction === 'reload' ? '重载中…' : '重载插件'),
             h('button', { style: ghost, disabled: busy, onClick: load }, '重新读取')),
 
           error ? h('p', { style: { color: '#f87171', fontSize: 12, marginTop: 10 } }, error) : null,
