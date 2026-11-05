@@ -6,6 +6,7 @@
 // 全部在本机 127.0.0.1 上跑，不需要 cloudflared，也不会碰用户真实的 DSH_HOME。
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
+import { randomBytes } from 'node:crypto';
 import fs from 'node:fs';
 import http from 'node:http';
 import os from 'node:os';
@@ -13,8 +14,9 @@ import path from 'node:path';
 
 const HERE = path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/u, '$1'));
 const CLI = path.join(HERE, '..', 'lib', 'hub-cli.mjs');
-const TOKEN = 'test-admin-token-0123456789';
-const KEY = 'test-password-123';
+// 测试凭据每次运行随机生成：源码里不留任何 token/密码字面量（避免密钥扫描误报）。
+const TOKEN = randomBytes(24).toString('hex');
+const KEY = 'pw-' + randomBytes(12).toString('base64url');
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 let failures = 0;
